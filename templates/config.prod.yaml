@@ -1,0 +1,42 @@
+# Vibe 生产配置 — 通过环境变量注入
+# Docker 容器内使用此文件
+
+server:
+  port: 8080
+  mode: release
+
+database:
+  host: ${DB_HOST}
+  port: ${DB_PORT}
+  user: ${DB_USER}
+  password: ${DB_PASSWORD}
+  dbname: ${DB_NAME}
+  max_idle_conns: 10
+  max_open_conns: 100
+
+storage:
+  provider: qiniu
+  access_key: "${QINIU_ACCESS_KEY}"
+  secret_key: "${QINIU_SECRET_KEY}"
+  bucket: ${QINIU_BUCKET}
+  region: ${QINIU_REGION}
+  domain: "${QINIU_DOMAIN}"
+  use_https: true
+  prefix: "${QINIU_PREFIX}"
+
+jwt:
+  secret: "${JWT_SECRET}"
+  expire_hours: 720
+
+media:
+  max_image_size: 20971520
+  max_video_size: 524288000
+  max_audio_size: 52428800
+  thumbnail_width: 800
+  video_target_resolution: 720
+
+link_preview:
+  timeout_sec: 5
+  user_agent: "Vibe/1.0 LinkPreview Bot"
+
+access_code: "${ACCESS_CODE}"

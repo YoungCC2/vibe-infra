@@ -1,31 +1,32 @@
 # Vibe 生产配置 — 通过环境变量注入
 # Docker 容器内使用此文件
+# 支持语法: ${VAR} 和 ${VAR:-default}
 
 server:
-  port: 8080
+  port: ${SERVER_PORT:-8080}
   mode: release
 
 database:
-  host: ${DB_HOST}
-  port: ${DB_PORT}
-  user: ${DB_USER}
-  password: ${DB_PASSWORD}
-  dbname: ${DB_NAME}
+  host: ${DB_HOST:-127.0.0.1}
+  port: ${DB_PORT:-3306}
+  user: ${DB_USER:-root}
+  password: ${DB_PASSWORD:-}
+  dbname: ${DB_NAME:-vibe_db}
   max_idle_conns: 10
   max_open_conns: 100
 
 storage:
   provider: qiniu
-  access_key: "${QINIU_ACCESS_KEY}"
-  secret_key: "${QINIU_SECRET_KEY}"
-  bucket: ${QINIU_BUCKET}
-  region: ${QINIU_REGION}
-  domain: "${QINIU_DOMAIN}"
+  access_key: ${QINIU_ACCESS_KEY:-}
+  secret_key: ${QINIU_SECRET_KEY:-}
+  bucket: ${QINIU_BUCKET:-}
+  region: ${QINIU_REGION:-z1}
+  domain: ${QINIU_DOMAIN:-https://static.yhugo.cn}
   use_https: true
-  prefix: "${QINIU_PREFIX}"
+  prefix: ${QINIU_PREFIX:-zywoo}
 
 jwt:
-  secret: "${JWT_SECRET}"
+  secret: ${JWT_SECRET:-change-me}
   expire_hours: 720
 
 media:
@@ -39,4 +40,4 @@ link_preview:
   timeout_sec: 5
   user_agent: "Vibe/1.0 LinkPreview Bot"
 
-access_code: "${ACCESS_CODE}"
+access_code: ${ACCESS_CODE:-vibe123}

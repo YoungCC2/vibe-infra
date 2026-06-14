@@ -1,7 +1,7 @@
 # Vibe Server Dockerfile — 多阶段构建
-# Go 1.22+，静态编译
+# Go 1.26+，静态编译
 
-FROM golang:1.22-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
 RUN apk add --no-cache git ca-certificates tzdata
 
@@ -32,6 +32,6 @@ COPY --from=builder /build/migrations /app/migrations
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -sf http://localhost:8080/api/stats || exit 1
+    CMD curl -sf http://localhost:8080/api/health || exit 1
 
 ENTRYPOINT ["/app/vibe-server"]

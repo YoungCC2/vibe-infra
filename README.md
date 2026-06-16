@@ -5,7 +5,7 @@ Vibe 内容发布平台的后端部署配置。
 ## 架构
 
 ```
-用户 → 宿主机 Nginx (80/443 + SSL) → Docker vibe-api (127.0.0.1:8080)
+用户 → 宿主机 Nginx (80/443 + SSL) → Docker vibe-api (127.0.0.1:3010)
                                               ↓
                                     阿里云 RDS (MySQL)
                                     七牛云 (对象存储)

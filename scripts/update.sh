@@ -39,7 +39,7 @@ sleep 3
 
 echo "🩺 健康检查..."
 for i in 1 2 3 4 5; do
-    if curl -sf http://127.0.0.1:8080/api/health > /dev/null 2>&1; then
+    if curl -sf http://127.0.0.1:3010/api/health > /dev/null 2>&1; then
         echo "   ✅ 服务健康"
         break
     fi

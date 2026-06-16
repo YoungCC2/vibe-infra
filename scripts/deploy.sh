@@ -91,7 +91,7 @@ sleep 3
 echo ""
 echo "🩺 健康检查..."
 for i in 1 2 3 4 5; do
-    if curl -sf http://127.0.0.1:8080/api/health > /dev/null 2>&1; then
+    if curl -sf http://127.0.0.1:3010/api/health > /dev/null 2>&1; then
         echo "   ✅ API 服务健康"
         break
     fi
@@ -107,7 +107,7 @@ docker compose -f "$INFRA_DIR/docker-compose.yml" ps
 echo ""
 echo "✅ 部署完成！"
 echo ""
-echo "   API 直连:  http://127.0.0.1:8080/api"
+echo "   API 直连:  http://127.0.0.1:3010/api"
 echo "   通过 Nginx: https://YOUR_DOMAIN/api"
 echo "   日志:  docker compose -f $INFRA_DIR/docker-compose.yml logs -f"
 echo "   停止:  docker compose -f $INFRA_DIR/docker-compose.yml down"

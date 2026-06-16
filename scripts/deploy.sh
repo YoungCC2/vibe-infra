@@ -8,10 +8,18 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 INFRA_DIR="$(dirname "$SCRIPT_DIR")"
+SERVER_DIR="$INFRA_DIR/../vibe-server"
 
 echo "🚀 Vibe 部署开始"
 echo "   Infra 目录: $INFRA_DIR"
 echo ""
+
+# 0. 检查 vibe-server 代码目录
+if [ ! -d "$SERVER_DIR" ]; then
+    echo "❌ 未找到 vibe-server 目录: $SERVER_DIR"
+    echo "   请确保 vibe-server 与 vibe-infra 处于同级目录"
+    exit 1
+fi
 
 # 1. 检查 .env
 if [ ! -f "$INFRA_DIR/.env" ]; then
@@ -53,7 +61,13 @@ if [ ! -f "$INFRA_DIR/ssl/fullchain.pem" ]; then
     fi
 fi
 
-# 4. 构建并启动
+# 4. 同步生产配置（单一来源：templates/config.prod.yaml）
+echo ""
+echo "🧩 同步生产配置..."
+cp "$INFRA_DIR/templates/config.prod.yaml" "$SERVER_DIR/config.prod.yaml"
+echo "   ✓ config.prod.yaml 已同步到构建上下文"
+
+# 5. 构建并启动
 echo ""
 echo "📦 构建 Docker 镜像..."
 docker compose -f "$INFRA_DIR/docker-compose.yml" build
@@ -62,12 +76,12 @@ echo ""
 echo "🔄 启动服务..."
 docker compose -f "$INFRA_DIR/docker-compose.yml" up -d
 
-# 5. 等待启动
+# 6. 等待启动
 echo ""
 echo "⏳ 等待服务启动..."
 sleep 3
 
-# 6. 健康检查
+# 7. 健康检查
 echo ""
 echo "🩺 健康检查..."
 for i in 1 2 3 4 5; do
@@ -82,7 +96,7 @@ for i in 1 2 3 4 5; do
     sleep 2
 done
 
-# 7. 状态
+# 8. 状态
 echo ""
 echo "📊 服务状态:"
 docker compose -f "$INFRA_DIR/docker-compose.yml" ps

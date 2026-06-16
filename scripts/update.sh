@@ -33,7 +33,13 @@ else
     echo "   ⚠️ Go 未安装，跳过迁移。请手动执行 migrate。"
 fi
 
-# 3. 重新构建并重启
+# 3. 同步生产配置（单一来源：templates/config.prod.yaml）
+echo ""
+echo "🧩 同步生产配置..."
+cp "$INFRA_DIR/templates/config.prod.yaml" "$SERVER_DIR/config.prod.yaml"
+echo "   ✓ config.prod.yaml 已同步到构建上下文"
+
+# 4. 重新构建并重启
 echo ""
 echo "📦 重新构建 Docker 镜像..."
 cd "$INFRA_DIR"
@@ -43,7 +49,7 @@ echo ""
 echo "🔄 重启服务（零停机）..."
 docker compose up -d --no-deps vibe-api
 
-# 4. 健康检查
+# 5. 健康检查
 echo ""
 echo "🩺 健康检查..."
 sleep 2

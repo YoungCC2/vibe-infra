@@ -7,6 +7,9 @@ RUN apk add --no-cache git ca-certificates tzdata
 
 WORKDIR /build
 
+# 使用国内 Go 代理加速依赖下载
+ENV GOPROXY=https://goproxy.cn,direct
+
 # 缓存依赖
 COPY go.mod go.sum ./
 RUN go mod download

@@ -11,7 +11,7 @@ services:
     env_file:
       - .env
     ports:
-      - "127.0.0.1:3010:8080"
+      - "127.0.0.1:3011:8080"
     networks:
       - vibe-net
     logging:

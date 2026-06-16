@@ -2,66 +2,55 @@
 set -euo pipefail
 
 # ============================================================
-# Vibe 更新脚本 — 拉取最新代码 + 迁移 + 重新构建 + 滚动重启
+# Vibe 更新脚本 — 拉取最新代码并重新部署
 # ============================================================
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 INFRA_DIR="$(dirname "$SCRIPT_DIR")"
 SERVER_DIR="$INFRA_DIR/../vibe-server"
 
-echo "🔄 Vibe 更新流程"
+echo "🔄 Vibe 更新开始"
 echo ""
 
 # 1. 拉取最新代码
-echo "📥 拉取最新代码..."
-cd "$SERVER_DIR"
-git pull origin main
-echo "   ✓ 代码已更新"
+echo "📥 拉取 vibe-server..."
+git -C "$SERVER_DIR" pull
+echo "📥 拉取 vibe-infra..."
+git -C "$INFRA_DIR" pull
 
-# 2. 执行数据库迁移
-echo ""
-echo "🗄️  执行数据库迁移..."
-cd "$SERVER_DIR"
-if [ -f "$INFRA_DIR/.env" ]; then
-    set -a
-    source "$INFRA_DIR/.env"
-    set +a
-fi
-if command -v go &> /dev/null; then
-    go build -o /tmp/vibe-migrate ./cmd/migrate/ && /tmp/vibe-migrate && echo "   ✓ 迁移完成" || echo "   ⚠️ 迁移跳过（可能已全部执行）"
-else
-    echo "   ⚠️ Go 未安装，跳过迁移。请手动执行 migrate。"
-fi
-
-# 3. 同步生产配置（单一来源：templates/config.prod.yaml）
+# 2. 同步生产配置
 echo ""
 echo "🧩 同步生产配置..."
 cp "$INFRA_DIR/templates/config.prod.yaml" "$SERVER_DIR/config.prod.yaml"
-echo "   ✓ config.prod.yaml 已同步到构建上下文"
 
-# 4. 重新构建并重启
+# 3. 重新构建并启动
 echo ""
-echo "📦 重新构建 Docker 镜像..."
-cd "$INFRA_DIR"
-docker compose build vibe-api
+echo "📦 重新构建..."
+docker compose -f "$INFRA_DIR/docker-compose.yml" build
 
 echo ""
-echo "🔄 重启服务（零停机）..."
-docker compose up -d --no-deps vibe-api
+echo "🔄 重启服务..."
+docker compose -f "$INFRA_DIR/docker-compose.yml" up -d
 
-# 5. 健康检查
+# 4. 健康检查
 echo ""
+echo "⏳ 等待服务启动..."
+sleep 3
+
 echo "🩺 健康检查..."
-sleep 2
 for i in 1 2 3 4 5; do
-    if curl -sf http://localhost/health > /dev/null 2>&1; then
-        echo "   ✅ 服务已恢复"
-        exit 0
+    if curl -sf http://127.0.0.1:8080/api/health > /dev/null 2>&1; then
+        echo "   ✅ 服务健康"
+        break
     fi
     echo "   等待中... ($i/5)"
     sleep 2
 done
 
-echo "   ⚠️  服务未就绪，检查日志："
-echo "   docker compose -f $INFRA_DIR/docker-compose.yml logs vibe-api"
-exit 1
+# 5. 状态
+echo ""
+echo "📊 服务状态:"
+docker compose -f "$INFRA_DIR/docker-compose.yml" ps
+
+echo ""
+echo "✅ 更新完成！"

@@ -37,7 +37,7 @@ vibe-infra/
 │   └── conf.d/
 │       └── vibe.conf       # HTTPS 反代 + 安全头 + 健康检查
 ├── templates/
-│   └── config.prod.yaml    # 生产配置（${ENV_VAR} 注入，支持默认值）
+│   └── config.prod.yaml    # 生产配置唯一来源（${ENV_VAR} 注入，部署时自动同步到 vibe-server）
 ├── scripts/
 │   ├── deploy.sh           # 首次一键部署
 │   ├── update.sh           # 更新代码 + 自动迁移 + 滚动重启 + 健康检查
@@ -140,6 +140,13 @@ docker compose restart   # 重启
 内置 HEALTHCHECK 打 `/api/health`（无需认证）。
 
 ### config.prod.yaml
+
+**唯一来源** 是 `vibe-infra/templates/config.prod.yaml`。`deploy.sh` / `update.sh` 在构建前会自动把它拷贝到 `vibe-server/config.prod.yaml`（即 Docker 构建上下文），由 Dockerfile 复制为容器内的 `/app/config.yaml`。
+
+> ⚠️ 不要手动编辑 `vibe-server/config.prod.yaml`——它是生成产物，每次部署都会被模板覆盖。所有生产配置改动都应改 `templates/config.prod.yaml`。
+>
+> 如果绕过脚本直接 `docker compose build`，需先手动执行：
+> `cp templates/config.prod.yaml ../vibe-server/config.prod.yaml`
 
 支持环境变量注入：
 - `${VAR}` — 必须设置，否则为空

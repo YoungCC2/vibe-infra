@@ -1,11 +1,12 @@
 # Vibe 基础设施编排
 # 仅 API 服务（MySQL 在阿里云 RDS，存储在七牛云，Nginx 由宿主机统一管理）
+#
+# 镜像由 GitHub Actions 自动构建并推送到 GHCR
+# 服务器只需 docker compose pull && docker compose up -d
 
 services:
   vibe-api:
-    build:
-      context: ../vibe-server
-      dockerfile: ../vibe-infra/Dockerfile
+    image: ghcr.io/youngcc2/zywoo:latest
     container_name: vibe-api
     restart: unless-stopped
     env_file:

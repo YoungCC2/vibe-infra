@@ -5,23 +5,16 @@ set -euo pipefail
 # Vibe 一键部署脚本
 # 在云服务器上执行
 # 前提：宿主机已安装 Nginx 和 Docker
+# 镜像由 GitHub Actions 自动构建并推送到 GHCR
 # ============================================================
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 INFRA_DIR="$(dirname "$SCRIPT_DIR")"
-SERVER_DIR="$INFRA_DIR/../vibe-server"
 DOMAIN="${VIBE_DOMAIN:-}"
 
 echo "🚀 Vibe 部署开始"
 echo "   Infra 目录: $INFRA_DIR"
 echo ""
-
-# 0. 检查 vibe-server 代码目录
-if [ ! -d "$SERVER_DIR" ]; then
-    echo "❌ 未找到 vibe-server 目录: $SERVER_DIR"
-    echo "   请确保 vibe-server 与 vibe-infra 处于同级目录"
-    exit 1
-fi
 
 # 1. 检查 .env
 if [ ! -f "$INFRA_DIR/.env" ]; then
@@ -51,20 +44,20 @@ if ! command -v nginx &> /dev/null; then
     echo "   安装：apt install nginx"
     exit 1
 fi
-
 echo "   ✓ 宿主机 Nginx 已安装"
 
-# 4. 同步生产配置
-echo ""
-echo "🧩 同步生产配置..."
-cp "$INFRA_DIR/templates/config.prod.yaml" "$SERVER_DIR/config.prod.yaml"
-echo "   ✓ config.prod.yaml 已同步到构建上下文"
+# 4. 登录 GHCR（首次需要）
+if ! docker pull ghcr.io/youngcc2/zywoo:latest 2>/dev/null; then
+    echo ""
+    echo "⚠️  拉取镜像失败，可能需要登录 GHCR"
+    echo "   运行: echo \$GITHUB_TOKEN | docker login ghcr.io -u YoungCC2 --password-stdin"
+    echo "   Token 需要有 read:packages 权限"
+    exit 1
+fi
 
-# 5. 构建并启动 API
-echo ""
-echo "📦 构建 Docker 镜像..."
-docker compose -f "$INFRA_DIR/docker-compose.yml" build
+echo "   ✓ 镜像拉取成功"
 
+# 5. 启动服务
 echo ""
 echo "🔄 启动 API 服务..."
 docker compose -f "$INFRA_DIR/docker-compose.yml" up -d
@@ -87,11 +80,11 @@ echo ""
 echo "⏳ 等待服务启动..."
 sleep 3
 
-# 8. 健康检查（直接检查 API 端口）
+# 8. 健康检查
 echo ""
 echo "🩺 健康检查..."
 for i in 1 2 3 4 5; do
-    if curl -sf http://127.0.0.1:3010/api/health > /dev/null 2>&1; then
+    if curl -sf http://127.0.0.1:3011/api/health > /dev/null 2>&1; then
         echo "   ✅ API 服务健康"
         break
     fi
@@ -107,7 +100,7 @@ docker compose -f "$INFRA_DIR/docker-compose.yml" ps
 echo ""
 echo "✅ 部署完成！"
 echo ""
-echo "   API 直连:  http://127.0.0.1:3010/api"
+echo "   API 直连:  http://127.0.0.1:3011/api"
 echo "   通过 Nginx: https://YOUR_DOMAIN/api"
 echo "   日志:  docker compose -f $INFRA_DIR/docker-compose.yml logs -f"
 echo "   停止:  docker compose -f $INFRA_DIR/docker-compose.yml down"

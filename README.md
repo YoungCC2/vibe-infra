@@ -5,36 +5,80 @@ Vibe 内容发布平台的后端部署配置。
 ## 架构
 
 ```
-用户 → 宿主机 Nginx (80/443 + SSL) → Docker vibe-api (127.0.0.1:3010)
+GitHub Actions (构建镜像) → GHCR (镜像仓库, public)
+                                     ↓
+用户 → 宿主机 Nginx (80/443 + SSL) → Docker vibe-api (127.0.0.1:3011)
                                               ↓
                                     阿里云 RDS (MySQL)
                                     七牛云 (对象存储)
 ```
 
 **设计原则：**
+- **服务器零构建** — GitHub Actions 负责构建镜像，服务器只拉取重启
 - Nginx 由宿主机统一管理，不放入 Docker（避免端口冲突，方便多个服务共用）
 - Docker 只运行 API 服务，轻量简洁
 - MySQL 使用阿里云 RDS，存储使用七牛云，无需本地数据库
+
+## CI/CD 流程
+
+```
+push to main → GitHub Actions 构建 Docker → 推送到 GHCR
+                                                   ↓
+                                          SSH 到服务器
+                                          docker pull latest
+                                          docker compose up -d
+                                          健康检查 (6 次重试)
+```
+
+服务器无需安装 Go、无需克隆源码，只拉镜像即可。
 
 ## 目录结构
 
 ```
 vibe-infra/
-├── docker-compose.yml      # API 服务编排
-├── Dockerfile              # Go 多阶段构建
+├── docker-compose.yml      # API 服务编排（使用 GHCR 镜像）
+├── Dockerfile              # Go 多阶段构建（CI 使用）
 ├── .env.example            # 环境变量模板
+├── .env                    # 实际配置（不入 Git）
 ├── nginx/
 │   ├── nginx.conf          # Nginx 主配置（参考）
 │   └── conf.d/
 │       └── vibe.conf       # Vibe 反代配置（部署到宿主机）
 ├── scripts/
-│   ├── deploy.sh           # 一键部署
-│   ├── update.sh           # 更新重启
+│   ├── deploy.sh           # 首次部署（Docker 构建 + Nginx）
+│   ├── update.sh           # 更新重启（拉镜像 + 重启）
 │   └── ssl.sh              # SSL 证书申请
 ├── templates/
-│   └── config.prod.yaml    # 生产配置模板
-├── ssl/                    # SSL 证书（仅自签名时用）
+│   └── config.prod.yaml    # 生产配置模板（${ENV_VAR} 展开）
+├── ssl/                    # SSL 证书
 └── logs/                   # 日志
+```
+
+## docker-compose.yml
+
+服务器上使用镜像模式（不再是本地构建）：
+
+```yaml
+services:
+  vibe-api:
+    image: ghcr.io/youngcc2/vibe-server:latest
+    container_name: vibe-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:3011:8080"
+    networks:
+      - vibe-net
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  vibe-net:
+    driver: bridge
 ```
 
 ## 前置要求
@@ -45,23 +89,17 @@ vibe-infra/
 |------|---------|------|
 | **Docker** | `curl -fsSL https://get.docker.com \| sh` | 20.10+，含 Compose |
 | **Nginx** | `apt install nginx` | 宿主机统一管理 80/443 |
-| **certbot** | `apt install certbot python3-certbot-nginx` | SSL 证书（可选，正式部署需要） |
+| **certbot** | `apt install certbot python3-certbot-nginx` | SSL 证书（可选） |
 
-## 快速部署
+> 服务器**不需要**安装 Go、不需要克隆 vibe-server 源码。
 
-### 1. 克隆代码
+## 首次部署
+
+### 1. 克隆 infra 配置
 
 ```bash
-cd /opt
-git clone https://github.com/YoungCC2/vibe-server.git
+cd /home
 git clone https://github.com/YoungCC2/vibe-infra.git
-```
-
-确保两个目录同级：
-```
-/opt/
-├── vibe-server/
-└── vibe-infra/
 ```
 
 ### 2. 配置环境变量
@@ -73,31 +111,29 @@ vi .env
 ```
 
 必填项：
-- `DB_DSN` — 阿里云 RDS 连接串
-- `QINIU_AK` / `QINIU_SK` — 七牛云密钥
-- `QINIU_BUCKET` — 七牛云 bucket 名
-- `QINIU_DOMAIN` — 七牛云 CDN 域名
-- `ACCESS_CODE` — 管理员 PIN 码
-- `JWT_SECRET` — JWT 签名密钥
-- `CORS_ORIGINS` — 允许的跨域来源
 
-### 3. 一键部署
+| 变量 | 说明 |
+|------|------|
+| `DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` | 阿里云 RDS 连接信息 |
+| `QINIU_ACCESS_KEY` / `QINIU_SECRET_KEY` | 七牛云密钥 |
+| `QINIU_BUCKET` / `QINIU_REGION` / `QINIU_DOMAIN` / `QINIU_PREFIX` | 七牛云存储配置 |
+| `ACCESS_CODE` | PIN 码登录密码 |
+| `JWT_SECRET` | JWT 签名密钥 |
+| `CORS_ORIGINS` | 允许的跨域来源（逗号分隔） |
+| `GLM_API_KEY` | GLM AI 评价 API Key |
+
+### 3. 拉取镜像并启动
 
 ```bash
-chmod +x scripts/*.sh
-./scripts/deploy.sh
+docker pull ghcr.io/youngcc2/vibe-server:latest
+docker compose up -d
 ```
 
 ### 4. 配置 Nginx 反代
 
 ```bash
-# 复制配置到宿主机 Nginx
 cp nginx/conf.d/vibe.conf /etc/nginx/conf.d/
-
-# 替换域名（把 your-domain.com 换成真实域名）
 sed -i 's/YOUR_DOMAIN/your-domain.com/g' /etc/nginx/conf.d/vibe.conf
-
-# 测试并重载
 nginx -t && systemctl reload nginx
 ```
 
@@ -107,52 +143,68 @@ nginx -t && systemctl reload nginx
 ./scripts/ssl.sh your-domain.com
 ```
 
-会自动通过 Let's Encrypt 申请证书并配置 Nginx。
-
 ## 日常运维
 
-### 更新代码
+### 更新服务
+
+CI/CD 会自动部署。如需手动更新：
 
 ```bash
-./scripts/update.sh
+cd /home/vibe-infra
+docker pull ghcr.io/youngcc2/vibe-server:latest
+docker compose up -d --force-recreate vibe-api
+docker image prune -f
 ```
-
-自动拉取最新代码 → 同步配置 → 重新构建 → 重启 → 健康检查。
 
 ### 查看日志
 
 ```bash
-docker compose logs -f
+docker compose logs -f vibe-api
 ```
 
 ### 停止/重启
 
 ```bash
-docker compose down      # 停止
-docker compose up -d     # 启动
-docker compose restart   # 重启
+docker compose down                    # 停止
+docker compose up -d                   # 启动
+docker compose restart vibe-api        # 重启
 ```
 
-## 关于 Nginx
+### 健康检查
 
-本项目 **不包含 Docker Nginx**，原因：
+```bash
+curl http://127.0.0.1:3011/api/health
+# {"status":"ok"}
+```
 
-1. 服务器通常已有 Nginx 在运行（管理多个站点）
-2. Docker 内再跑 Nginx 会导致 80/443 端口冲突
-3. 宿主机 Nginx 统一管理 SSL 证书更方便
+## Nginx 配置
 
-`nginx/` 目录提供配置模板，部署时复制到宿主机的 `/etc/nginx/conf.d/` 即可。
+宿主机 Nginx 统一管理 80/443 + SSL，反代到 Docker 容器的 3011 端口。
 
-## GOPROXY 说明
+关键配置：
+- `client_max_body_size 600m`（图片 20MB / 视频 500MB）
+- HTTP → HTTPS 自动跳转
+- 安全头（HSTS / X-Frame-Options 等）
 
-Dockerfile 内已设置 `GOPROXY=https://goproxy.cn,direct`，确保国内服务器拉取 Go 依赖不会超时。如果你在海外服务器部署，可以改成 `https://proxy.golang.org,direct`。
+## GitHub Actions Secrets
+
+CI/CD 部署所需的 Secrets（配置在 vibe-server repo）：
+
+| Secret | 说明 |
+|--------|------|
+| `VIBE_SSH_HOST` | 服务器 IP 地址 |
+| `VIBE_SSH_PORT` | SSH 端口（22） |
+| `VIBE_SSH_USER` | SSH 用户（root） |
+| `VIBE_SSH_KEY` | Deploy 专用 SSH 私钥（ed25519） |
 
 ## 故障排查
 
 | 问题 | 排查方式 |
 |------|---------|
 | API 起不来 | `docker compose logs vibe-api` |
-| 502 Bad Gateway | 检查 API 是否运行：`curl http://127.0.0.1:8080/api/health` |
+| 502 Bad Gateway | `curl http://127.0.0.1:3011/api/health` 检查容器是否运行 |
 | 上传失败 | 检查七牛云配置和网络连通性 |
 | 数据库连接失败 | 检查 RDS 白名单是否包含服务器 IP |
+| AI 评价失败 | 检查 `GLM_API_KEY` 配置 |
 | SSL 证书过期 | `certbot renew && systemctl reload nginx` |
+| Docker 镜像拉不到 | 确认 GHCR package 为 public |

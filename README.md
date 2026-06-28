@@ -120,7 +120,9 @@ vi .env
 | `ACCESS_CODE` | PIN 码登录密码 |
 | `JWT_SECRET` | JWT 签名密钥 |
 | `CORS_ORIGINS` | 允许的跨域来源（逗号分隔） |
+| `AI_PROVIDER` | AI 评价供应商：`glm` / `deepseek`（默认 deepseek） |
 | `GLM_API_KEY` | GLM AI 评价 API Key |
+| `DEEPSEEK_API_KEY` | DeepSeek AI 评价 API Key |
 
 ### 3. 拉取镜像并启动
 

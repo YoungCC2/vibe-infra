@@ -6,7 +6,7 @@
 
 services:
   vibe-api:
-    image: ghcr.io/youngcc2/zywoo:latest
+    image: ghcr.io/youngcc2/vibe-server:latest
     container_name: vibe-api
     restart: unless-stopped
     env_file:
